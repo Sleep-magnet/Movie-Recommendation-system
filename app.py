@@ -1,5 +1,5 @@
 '''
-Author: Bappy Ahmed
+Author: Bappy Ahmed (Modified by ChatGPT)
 Email: entbappy73@gmail.com
 Date: 2021-Nov-15
 '''
@@ -7,49 +7,52 @@ Date: 2021-Nov-15
 import pickle
 import streamlit as st
 import requests
-
 import time
-
-# After each requests.get call inside your recommend function
-time.sleep(0.3)  # sleep 300ms to avoid API rate limiting
-
 
 API_KEY = "8265bd1679663a7ea12ac168da84d2e8"
 
-def fetch_poster(movie_id):
+def fetch_poster(movie_id, retries=3, backoff=1):
     url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={API_KEY}&language=en-US"
-    response = requests.get(url)
-    if response.status_code != 200:
-        print("Failed to fetch poster:", response.status_code, response.text)
-        return None
-    data = response.json()
-    poster_path = data.get('poster_path')
-    if poster_path:
-        return "https://image.tmdb.org/t/p/w500/" + poster_path
-    else:
-        return None
-
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    for attempt in range(retries):
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            poster_path = data.get('poster_path')
+            if poster_path:
+                return "https://image.tmdb.org/t/p/w500/" + poster_path
+            else:
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"[Attempt {attempt+1}] Failed to fetch poster: {e}")
+            time.sleep(backoff * (attempt + 1))
+    return None
 
 
 def recommend(movie):
     index = movies[movies['title'] == movie].index[0]
-    movie_id = movies[movies['title'] == selected_movie]['movie_id'].values[0]
     distances = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
     recommended_movie_names = []
     recommended_movie_posters = []
+
     for i in distances[1:6]:
-        # fetch the movie poster
         movie_id = movies.iloc[i[0]]['movie_id']
-        recommended_movie_posters.append(fetch_poster(movie_id))
+        poster = fetch_poster(movie_id)
+        recommended_movie_posters.append(poster)
         recommended_movie_names.append(movies.iloc[i[0]].title)
+        time.sleep(0.5)  # Wait 500ms between API calls to avoid rate limits
 
-    return recommended_movie_names,recommended_movie_posters
+    return recommended_movie_names, recommended_movie_posters
 
 
+# Streamlit UI
 st.header('Movie Recommender System Using Machine Learning')
 
-movies = pickle.load(open('artifacts/movie_list.pkl','rb'))
-similarity = pickle.load(open('artifacts/similarity.pkl','rb'))
+movies = pickle.load(open('artifacts/movie_list.pkl', 'rb'))
+similarity = pickle.load(open('artifacts/similarity.pkl', 'rb'))
 
 movie_list = movies['title'].values
 selected_movie = st.selectbox(
@@ -58,21 +61,12 @@ selected_movie = st.selectbox(
 )
 
 if st.button('Show Recommendation'):
-    recommended_movie_names,recommended_movie_posters = recommend(selected_movie)
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        st.text(recommended_movie_names[0])
-        st.image(recommended_movie_posters[0])
-    with col2:
-        st.text(recommended_movie_names[1])
-        st.image(recommended_movie_posters[1])
-
-    with col3:
-        st.text(recommended_movie_names[2])
-        st.image(recommended_movie_posters[2])
-    with col4:
-        st.text(recommended_movie_names[3])
-        st.image(recommended_movie_posters[3])
-    with col5:
-        st.text(recommended_movie_names[4])
-        st.image(recommended_movie_posters[4])
+    recommended_movie_names, recommended_movie_posters = recommend(selected_movie)
+    cols = st.columns(5)
+    for idx, col in enumerate(cols):
+        with col:
+            st.text(recommended_movie_names[idx])
+            if recommended_movie_posters[idx]:
+                st.image(recommended_movie_posters[idx])
+            else:
+                st.warning("Poster not available.")
