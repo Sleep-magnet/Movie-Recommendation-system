@@ -8,22 +8,38 @@ import pickle
 import streamlit as st
 import requests
 
+import time
+
+# After each requests.get call inside your recommend function
+time.sleep(0.3)  # sleep 300ms to avoid API rate limiting
+
+
+API_KEY = "8265bd1679663a7ea12ac168da84d2e8"
+
 def fetch_poster(movie_id):
-    url = "https://api.themoviedb.org/3/movie/{}?api_key=8265bd1679663a7ea12ac168da84d2e8&language=en-US".format(movie_id)
-    data = requests.get(url)
-    data = data.json()
-    poster_path = data['poster_path']
-    full_path = "https://image.tmdb.org/t/p/w500/" + poster_path
-    return full_path
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}?api_key={API_KEY}&language=en-US"
+    response = requests.get(url)
+    if response.status_code != 200:
+        print("Failed to fetch poster:", response.status_code, response.text)
+        return None
+    data = response.json()
+    poster_path = data.get('poster_path')
+    if poster_path:
+        return "https://image.tmdb.org/t/p/w500/" + poster_path
+    else:
+        return None
+
+
 
 def recommend(movie):
     index = movies[movies['title'] == movie].index[0]
+    movie_id = movies[movies['title'] == selected_movie]['movie_id'].values[0]
     distances = sorted(list(enumerate(similarity[index])), reverse=True, key=lambda x: x[1])
     recommended_movie_names = []
     recommended_movie_posters = []
     for i in distances[1:6]:
         # fetch the movie poster
-        movie_id = movies.iloc[i[0]].movie_id
+        movie_id = movies.iloc[i[0]]['movie_id']
         recommended_movie_posters.append(fetch_poster(movie_id))
         recommended_movie_names.append(movies.iloc[i[0]].title)
 
@@ -31,6 +47,7 @@ def recommend(movie):
 
 
 st.header('Movie Recommender System Using Machine Learning')
+
 movies = pickle.load(open('artifacts/movie_list.pkl','rb'))
 similarity = pickle.load(open('artifacts/similarity.pkl','rb'))
 
@@ -59,4 +76,3 @@ if st.button('Show Recommendation'):
     with col5:
         st.text(recommended_movie_names[4])
         st.image(recommended_movie_posters[4])
-
