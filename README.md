@@ -77,7 +77,7 @@ This is a **Streamlit** web application that recommends movies similar to a user
 
 STEP 1 – Clone the Repository
 ```bash
-git clone https://github.com/Laxmisriik/movie-recommender-system.git
+git clone https://github.com/Sleep-magnet/Movie-Recommendation-system
 cd movie-recommender-system
 
 STEP 2 – Create and Activate Conda Environment
